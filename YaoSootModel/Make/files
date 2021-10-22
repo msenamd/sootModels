@@ -1,0 +1,3 @@
+YaoSootModelLaminar/YaoSootModelLaminar_s.C
+
+LIB = $(FOAM_USER_LIBBIN)/libYaoSootModelLaminar
