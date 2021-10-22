@@ -1,0 +1,6 @@
+sootSource/sootSource.C  
+betaPDF/ZbetaPDF.C
+betaPDF/TbetaPDF.C
+LSPSootModel/LSPSootModel_s.C
+
+LIB = $(FOAM_USER_LIBBIN)/libLSPSootModel
