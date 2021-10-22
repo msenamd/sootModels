@@ -1,0 +1,304 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  1.7.1                                 |
+|   \\  /    A nd           | Web:      www.OpenFOAM.org                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    location    "constant";
+    object      radiationProperties;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+radiation       on;
+
+radiationModel  fvDOMBand; //fvDOM
+
+
+fvDOMBandCoeffs
+{
+    nPhi    8;          // azimuthal angles in PI/2 on X-Y.(from Y to X)
+    nTheta  1;          // polar angles in PI (from Z to X-Y plane)
+    convergence 1e-4;   // convergence criteria for radiation iteration
+    maxIter 10;         // maximum number of iterations
+}
+
+// Number of flow iterations per radiation iteration
+solverFreq 1;
+
+absorptionEmissionModel wsggmCassolSoot;
+
+wsggmCassolSootCoeffs
+{
+    BetaSoot 4.1; //check value for different fuels
+
+        band0
+        {
+            species
+            {
+                H2O_CO2 //transparent
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (0 0.45717 119.8030e-5 -131.3090e-8 55.4640e-11 -85.9380e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (22313.49 0.95552 -1.431e-3 9.871e-7 -3.39e-10 4.555e-14);
+                }
+            }
+        }
+        band1
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (0.192 0.05617 78.44e-5 -85.63e-8 42.46e-11 -74.4e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (22313.49 0.95552 -1.431e-3 9.871e-7 -3.39e-10 4.555e-14);
+                }
+            }
+        }
+        band2
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (1.719 0.14260 17.95e-5 -1.077e-8 -6.971e-11 17.74e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (22313.49 0.95552 -1.431e-3 9.871e-7 -3.39e-10 4.555e-14);
+                }
+            }
+        }
+        band3
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (11.370 0.13620 25.74e-5 -37.11e-8 15.70e-11 -22.67e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (22313.49 0.95552 -1.431e-3 9.871e-7 -3.39e-10 4.555e-14);
+                }
+            }
+        }        
+        band4
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (111.016 0.12220 -2.327e-5 -7.492e-8 4.275e-11 -6.608e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (22313.49 0.95552 -1.431e-3 9.871e-7 -3.39e-10 4.555e-14);
+                }
+            }
+        }
+        band5
+        {
+            species
+            {
+                H2O_CO2 //transparent
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (0 0.45717 119.8030e-5 -131.3090e-8 55.4640e-11 -85.9380e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (466624.8 0.08010 1.290e-3 -7.874e-7 2.322e-10 -3.084e-14);
+                }
+            }
+        }
+        band6
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (0.192 0.05617 78.44e-5 -85.63e-8 42.46e-11 -74.4e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (466624.8 0.08010 1.290e-3 -7.874e-7 2.322e-10 -3.084e-14);
+                }
+            }
+        }
+        band7
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (1.719 0.14260 17.95e-5 -1.077e-8 -6.971e-11 17.74e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (466624.8 0.08010 1.290e-3 -7.874e-7 2.322e-10 -3.084e-14);
+                }
+            }
+        }
+        band8
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (11.370 0.13620 25.74e-5 -37.11e-8 15.70e-11 -22.67e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (466624.8 0.08010 1.290e-3 -7.874e-7 2.322e-10 -3.084e-14);
+                }
+            }
+        }        
+        band9
+        {
+            species
+            {
+                H2O_CO2
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (111.016 0.12220 -2.327e-5 -7.492e-8 4.275e-11 -6.608e-15);
+                }
+                soot
+                {
+                    Tcommon         400.;
+                    Tlow            200.;
+                    Thigh           2500.;
+                    invTemp         false;
+                    loTcoeffs (0 0 0 0 0 0) ;
+                    hiTcoeffs (466624.8 0.08010 1.290e-3 -7.874e-7 2.322e-10 -3.084e-14);
+                }
+            }
+        } 
+
+}
+
+scatterModel    none;
+
+sootModel SPHSootModel<gasHThermoPhysics>;
+
+SPHSootModelCoeffs
+{
+	solveSoot 			false;//true;
+
+	rho_soot			1800;
+    	fuel          			CH3OH_Metanol;
+    	smokePointHeight		0.106; 
+    	adiabaticFlameTemperature   	2375;
+	T_inf			   	300.0;
+	T_air   			300.0;   
+	rho_air	   			1.1839;
+	MW_air 				28.9647;
+	YO2_air				0.23301;
+	proportionalityConst		0.4;
+}
+
+// ************************************************************************* //
