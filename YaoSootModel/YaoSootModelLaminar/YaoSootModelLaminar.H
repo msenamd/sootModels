@@ -109,7 +109,10 @@ class YaoSootModelLaminar
 
         //- Mean soot source terms
         volScalarField sootFormationRate;
-        volScalarField sootOxidationRate;  
+        volScalarField sootOxidationRate; 
+
+        //- Upper limit of soot oxidation rate
+        volScalarField sootOxidationLimiter; 
 
         //- Soot time derivative and convection terms
         volScalarField sootConvection;

@@ -14,7 +14,7 @@ License
     (at your option) any later version.
 
     OpenFOAM is distributed in the hope that it will be useful, but WITHOUT
-    ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+    ANY WARuANTY; without even the implied waRuanty of MERCHANTABILITY or
     FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
     for more details.
 
@@ -89,7 +89,20 @@ Foam::radiation::YaoSootModelLaminar<ThermoType>::YaoSootModelLaminar
         ),
         mesh,
         dimensionedScalar("sootOxidationRate", dimensionSet(1,-3,-1,0,0,0,0), scalar(0.0))
-    ),   
+    ),
+    sootOxidationLimiter
+    (
+        IOobject
+        (
+            "sootOxidationLimiter",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::READ_IF_PRESENT,
+            IOobject::AUTO_WRITE
+        ),
+        mesh,
+        dimensionedScalar("sootOxidationLimiter", dimensionSet(1,-3,-1,0,0,0,0), scalar(0.0))
+    ),         
     sootConvection
     (
         IOobject
@@ -191,6 +204,7 @@ Foam::radiation::YaoSootModelLaminar<ThermoType>::YaoSootModelLaminar
 
 {
 
+    Info << "Z_st =  " << Z_st << endl;
     Info << "Soot formation/oxidation mix. frac. limits are "
          << Z_sf << " and " << Z_so << endl;
 
@@ -223,8 +237,8 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
         surfaceScalarField phi = mesh().objectRegistry::template lookupObject<surfaceScalarField>("phi");
 
         //updating concentration of O2
-        dimensionedScalar RR("RR", dimensionSet(1,2,-2,-1,-1,0,0), scalar(8.3145));
-        O2Concentration = YO2 * MW_mix/MW_O2 * thermo.p()/RR/thermo.T();
+        dimensionedScalar Ru("Ru", dimensionSet(1,2,-2,-1,-1,0,0), scalar(8.3145));
+        O2Concentration = YO2 * MW_mix/MW_O2 * thermo.p()/Ru/thermo.T();
 
         // Updating mixture fraction
         Z = (s*YFuel-YO2+YO2Inf)/(s*YFInf+YO2Inf);
@@ -244,18 +258,32 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                                             * Foam::pow(thermo.T()[cellI], gamma)
                                             * Foam::exp(-Ta/thermo.T()[cellI]);
             }
+        }
 
+        //update a limiter for oxidation rate
+        volScalarField Ysoot01 = Ysoot;
+        Ysoot01.min(1.0);
+        Ysoot01.max(0.0);
+        sootOxidationLimiter = rho*Ysoot01/mesh().time().deltaT()
+                         - fvc::div(phi, Ysoot01) 
+                         + fvc::div(0.556*thermo.mu()/thermo.T() * fvc::grad(thermo.T()) * Ysoot01)
+                         + sootFormationRate;
+
+        forAll(Ysoot, cellI)
+        {
             sootOxidationRate[cellI] = 0.0;  
 
             if ((Z[cellI] >= 0.0) && (Z[cellI] <= Z_sf))
             {
-                sootOxidationRate[cellI] = rho[cellI] * max(Ysoot[cellI],0.0) * Asoot 
+                sootOxidationRate[cellI] = rho[cellI] * Ysoot[cellI] * Asoot 
                                             * Aox 
                                             * O2Concentration[cellI]
                                             * Foam::pow(thermo.T()[cellI], 0.5)
-                                            * Foam::exp(-EaOx/RR.value()/thermo.T()[cellI]);                
+                                            * Foam::exp(-EaOx/Ru.value()/thermo.T()[cellI]);                            
             }
+            sootOxidationRate[cellI] = max(0.0, min (sootOxidationRate[cellI], sootOxidationLimiter[cellI]));
         }
+
         
         Info << "soot formation rate min/max = " << min(sootFormationRate).value() 
              << " , " << max(sootFormationRate).value() << endl;
@@ -274,7 +302,7 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                 -   sootOxidationRate
             );
 
-        SootEqn.solve();
+        SootEqn.solve();      
 
         Info << "soot mass fraction min/max = " << min(Ysoot).value() 
              << " , " << max(Ysoot).value() << endl;
