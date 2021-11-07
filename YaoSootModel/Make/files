@@ -1,3 +1,4 @@
 YaoSootModelLaminar/YaoSootModelLaminar_s.C
+YaoSootModelTurbulent/YaoSootModelTurbulent_s.C
 
-LIB = $(FOAM_USER_LIBBIN)/libYaoSootModelLaminar
+LIB = $(FOAM_USER_LIBBIN)/libYaoSootModel
