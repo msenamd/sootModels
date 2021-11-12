@@ -226,6 +226,11 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
             }
         }
 
+        sootOxidationLimiter = rho*Ysoot/mesh().time().deltaT()
+                         - fvc::div(phi, Ysoot) 
+                         + fvc::laplacian(rho*turbulence.nut()/Prt, Ysoot)
+                         + sootFormationRate;
+
         forAll(Ysoot, cellI)
         {
             sootOxidationRate[cellI] = 0.0;  
@@ -236,7 +241,8 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                                             * Aox 
                                             * O2Concentration[cellI]
                                             * Foam::pow(thermo.T()[cellI], 0.5)
-                                            * Foam::exp(-EaOx/Ru.value()/thermo.T()[cellI]);                            
+                                            * Foam::exp(-EaOx/Ru.value()/thermo.T()[cellI]);
+                sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));                                                        
             }
         }
 

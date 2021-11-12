@@ -261,12 +261,9 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
         }
 
         //update a limiter for oxidation rate
-        volScalarField Ysoot01 = Ysoot;
-        Ysoot01.min(1.0);
-        Ysoot01.max(0.0);
-        sootOxidationLimiter = rho*Ysoot01/mesh().time().deltaT()
-                         - fvc::div(phi, Ysoot01) 
-                         + fvc::div(0.556*thermo.mu()/thermo.T() * fvc::grad(thermo.T()) * Ysoot01)
+        sootOxidationLimiter = rho*Ysoot/mesh().time().deltaT()
+                         - fvc::div(phi, Ysoot) 
+                         + fvc::div(0.556*thermo.mu()/thermo.T() * fvc::grad(thermo.T()) * Ysoot)
                          + sootFormationRate;
 
         forAll(Ysoot, cellI)
@@ -279,9 +276,10 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                                             * Aox 
                                             * O2Concentration[cellI]
                                             * Foam::pow(thermo.T()[cellI], 0.5)
-                                            * Foam::exp(-EaOx/Ru.value()/thermo.T()[cellI]);                            
+                                            * Foam::exp(-EaOx/Ru.value()/thermo.T()[cellI]);
+                sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));                                                        
+                                                            
             }
-            sootOxidationRate[cellI] = max(0.0, min (sootOxidationRate[cellI], sootOxidationLimiter[cellI]));
         }
 
         
@@ -303,13 +301,14 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
             );
 
         SootEqn.solve();      
+        Ysoot.max(0.0);
+        Ysoot.min(1.0);
 
         Info << "soot mass fraction min/max = " << min(Ysoot).value() 
              << " , " << max(Ysoot).value() << endl;
 
         // Updating the density of the two-phase and soot vol. frac.
         fv = rho * Ysoot / rhoSoot; 
-        fv.max(0.0);
 
         Info << "soot vol fraction max = " << max(fv).value() << endl;
 
