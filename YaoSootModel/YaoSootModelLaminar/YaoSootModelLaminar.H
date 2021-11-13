@@ -166,6 +166,10 @@ class YaoSootModelLaminar
         scalar Aox;
         scalar EaOx;
 
+        //- Constants
+        dimensionedScalar MW_O2;
+        dimensionedScalar Ru;
+        
 public:
 
     //- Runtime type information

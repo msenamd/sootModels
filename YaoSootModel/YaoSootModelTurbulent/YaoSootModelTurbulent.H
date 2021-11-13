@@ -116,6 +116,11 @@ class YaoSootModelTurbulent
         //- Upper limit of soot oxidation rate
         volScalarField sootOxidationLimiter; 
 
+        //- Soot time derivative and convection terms
+        volScalarField sootConvection;
+        volScalarField sootTimeDer;
+        volScalarField diffusion;
+
         //- Mixture fraction
         volScalarField Z;
 
@@ -163,6 +168,10 @@ class YaoSootModelTurbulent
         scalar Aox;
         scalar EaOx;
 
+        //- Constants
+        dimensionedScalar MW_O2;
+        dimensionedScalar Ru;
+        
 public:
 
     //- Runtime type information

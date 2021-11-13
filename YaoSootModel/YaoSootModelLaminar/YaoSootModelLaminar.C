@@ -200,11 +200,16 @@ Foam::radiation::YaoSootModelLaminar<ThermoType>::YaoSootModelLaminar
 
     Asoot(160e3),
     Aox(120.0),
-    EaOx(163540.0)
+    EaOx(163540.0),
 
+    MW_O2("MW_O2", dimensionSet(1,0,0,0,-1,0,0), scalar(31.9988e-3)),
+    Ru("Ru", dimensionSet(1,2,-2,-1,-1,0,0), scalar(8.3145))
 {
 
     Info << "Z_st =  " << Z_st << endl;
+
+    Info << "Soot oxidizer is oxygen, MW =   " << MW_O2 << endl;
+
     Info << "Soot formation/oxidation mix. frac. limits are "
          << Z_sf << " and " << Z_so << endl;
 
@@ -229,16 +234,15 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
     if (solveSoot)
     {  
         //access flow properties and species data
-        volScalarField YO2 = thermo.composition().Y()[O2Index];
-        volScalarField YFuel = thermo.composition().Y()[fuelIndex];
-        scalar MW_O2 = thermo.composition().W(O2Index);
-        volScalarField MW_mix = thermo.composition().W();
-        volScalarField rho = thermo.rho();
-        surfaceScalarField phi = mesh().objectRegistry::template lookupObject<surfaceScalarField>("phi");
+        const volScalarField& YO2 = thermo.composition().Y()[O2Index];
+        const volScalarField& YFuel = thermo.composition().Y()[fuelIndex];
+        const volScalarField& T = thermo.T();
+
+        const volScalarField& rho = mesh().objectRegistry::template lookupObject<volScalarField>("rho");        
+        const surfaceScalarField& phi = mesh().objectRegistry::template lookupObject<surfaceScalarField>("phi");
 
         //updating concentration of O2
-        dimensionedScalar Ru("Ru", dimensionSet(1,2,-2,-1,-1,0,0), scalar(8.3145));
-        O2Concentration = YO2 * MW_mix/MW_O2 * thermo.p()/Ru/thermo.T();
+        O2Concentration = YO2*rho/MW_O2;
 
         // Updating mixture fraction
         Z = (s*YFuel-YO2+YO2Inf)/(s*YFInf+YO2Inf);
@@ -255,15 +259,15 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
 
                 sootFormationRate[cellI] = Af * Foam::pow(rho[cellI], 2.0)
                                             * YFInf*(Z[cellI]-Z_st)/(1.0-Z_st)
-                                            * Foam::pow(thermo.T()[cellI], gamma)
-                                            * Foam::exp(-Ta/thermo.T()[cellI]);
+                                            * Foam::pow(T[cellI], gamma)
+                                            * Foam::exp(-Ta/T[cellI]);
             }
         }
 
         //update a limiter for oxidation rate
         sootOxidationLimiter = rho*Ysoot/mesh().time().deltaT()
                          - fvc::div(phi, Ysoot) 
-                         + fvc::div(0.556*thermo.mu()/thermo.T() * fvc::grad(thermo.T()) * Ysoot)
+                         + fvc::div(0.556*thermo.mu()/T * fvc::grad(T) * Ysoot)
                          + sootFormationRate;
 
         forAll(Ysoot, cellI)
@@ -275,8 +279,8 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                 sootOxidationRate[cellI] = rho[cellI] * Ysoot[cellI] * Asoot 
                                             * Aox 
                                             * O2Concentration[cellI]
-                                            * Foam::pow(thermo.T()[cellI], 0.5)
-                                            * Foam::exp(-EaOx/Ru.value()/thermo.T()[cellI]);
+                                            * Foam::pow(T[cellI], 0.5)
+                                            * Foam::exp(-EaOx/Ru.value()/T[cellI]);
                 sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));                                                        
                                                             
             }
@@ -295,7 +299,7 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                     fvm::ddt(rho, Ysoot)
                 +   fvm::div(phi, Ysoot)
                 ==  
-                    fvc::div(0.556*thermo.mu()/thermo.T() * fvc::grad(thermo.T()) * Ysoot)
+                    fvc::div(0.556*thermo.mu()/T * fvc::grad(T) * Ysoot)
                 +   sootFormationRate
                 -   sootOxidationRate
             );
@@ -315,7 +319,7 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
         //for diagnostic purposes only
         sootTimeDer     = fvc::ddt(rho, Ysoot);
         sootConvection  = fvc::div(phi, Ysoot);
-        thermophoresis  = fvc::div(0.556*thermo.mu()/thermo.T() * fvc::grad(thermo.T()) * Ysoot);        
+        thermophoresis  = fvc::div(0.556*thermo.mu()/T * fvc::grad(T) * Ysoot);        
    }
 
 }
