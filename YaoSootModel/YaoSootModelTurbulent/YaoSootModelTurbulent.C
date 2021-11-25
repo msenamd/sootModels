@@ -90,18 +90,18 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
         mesh,
         dimensionedScalar("sootOxidationRate", dimensionSet(1,-3,-1,0,0,0,0), scalar(0.0))
     ),
-    sootOxidationLimiter
+    probabilityZ
     (
         IOobject
         (
-            "sootOxidationLimiter",
+            "probabilityZ",
             mesh.time().timeName(),
             mesh,
             IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
-        dimensionedScalar("sootOxidationLimiter", dimensionSet(1,-3,-1,0,0,0,0), scalar(0.0))
+        dimensionedScalar("probabilityZ", dimensionSet(0,0,0,0,0,0,0), scalar(0.0))
     ),         
     sootConvection
     (
@@ -155,6 +155,18 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
         mesh,
         dimensionedScalar("Z", dimless, scalar(0.0))
     ),
+    Zvar
+    (
+        IOobject
+        (
+            "Zvar",
+            mesh.time().timeName(),
+            mesh,
+            IOobject::MUST_READ,
+            IOobject::AUTO_WRITE
+        ),
+        mesh
+    ),   
     O2Concentration
     (
         IOobject
@@ -173,6 +185,7 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
     coeffsDict_(dict.subOrEmptyDict(modelType + "Coeffs")),
 
     solveSoot(coeffsDict_.lookup("solveSoot")),
+    SGSFilter(coeffsDict_.lookup("SGSFilter")),
     	          
     rhoSoot
     (
@@ -239,57 +252,113 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
         const volScalarField& T = thermo.T();
 
         const volScalarField& rho = mesh().objectRegistry::template lookupObject<volScalarField>("rho");        
+
         const surfaceScalarField& phi = mesh().objectRegistry::template lookupObject<surfaceScalarField>("phi");
 
-        const turbulenceModel& turbulence 
-            = mesh().objectRegistry::template lookupObject<turbulenceModel>("turbulenceProperties");
-
+        const compressible::LESModel& lesModel = mesh().lookupObject<compressible::LESModel>
+                                                (
+                                                 turbulenceModel::propertiesName
+                                                );
+        
         //updating concentration of O2
-        O2Concentration = YO2*rho/MW_O2;
+        O2Concentration == YO2*rho/MW_O2;
 
         // Updating mixture fraction
-        Z = (s*YFuel-YO2+YO2Inf)/(s*YFInf+YO2Inf);
+        Z == (s*YFuel-YO2+YO2Inf)/(s*YFInf+YO2Inf);
 
-        // Calculate formation and oxidation rates
-        Info <<"updating soot formation/oxidation rates (Turbulent)" << endl;
+        if (SGSFilter)
+        {    
+            // Solving transport equation of mixture fraction variance
+            dimensionedScalar  k_small("k_small", dimensionSet(0,2,-2,0,0,0,0),1e-12);
 
-        forAll(Ysoot, cellI)
-        {
-            sootFormationRate[cellI] = 0.0;
+            solve
+            (
+                    fvm::ddt(rho, Zvar)
+                +   fvm::div(phi, Zvar)
+                ==  fvm::laplacian(lesModel.alphaEff(), Zvar)
+                +   2.0 * lesModel.alphat() * (fvc::grad(Z) & fvc::grad(Z))
+                -   fvm::Sp(2.0 * rho * lesModel.epsilon()/max(lesModel.k(), k_small) , Zvar)
+            );
 
-            if ((Z[cellI] >= Z_so) && (Z[cellI] <= Z_sf))
+            Zvar.max(0.0);
+            Zvar.min(1.0);   
+            Info << "Zvar min       = "   << min(Zvar).value() << endl;
+            Info << "Zvar max       = "   << max(Zvar).value() << endl;
+
+            // Calculate formation and oxidation rates
+            Info <<"updating soot formation/oxidation rates (Turbulent)" << endl;
+
+            forAll(Ysoot, cellI)
             {
+                sootFormationRate[cellI] = 0.0;
+                sootOxidationRate[cellI] = 0.0;
+/*
+                if ((Z[cellI] >= Z_so) && (Z[cellI] <= Z_sf))
+                {
 
-                sootFormationRate[cellI] = Af * Foam::pow(rho[cellI], 2.0)
-                                            * YFInf*(Z[cellI]-Z_st)/(1.0-Z_st)
-                                            * Foam::pow(T[cellI], gamma)
-                                            * Foam::exp(-Ta/T[cellI]);
+                    sootFormationRate[cellI] = Af * Foam::pow(rho[cellI], 2.0)
+                                                * YFInf*(Z[cellI]-Z_st)/(1.0-Z_st)
+                                                * Foam::pow(T[cellI], gamma)
+                                                * Foam::exp(-Ta/T[cellI]);
+
+                }
+
+                if ((Z[cellI] >= 0.0) && (Z[cellI] <= Z_sf))
+                {
+                    sootOxidationRate[cellI] = rho[cellI] * Ysoot[cellI] * Asoot 
+                                                * Aox 
+                                                * O2Concentration[cellI]
+                                                * Foam::pow(T[cellI], 0.5)
+                                                * Foam::exp(-EaOx/Ru.value()/T[cellI]);
+
+                }
+*/
+                //update probability of Z
+                probabilityZ[cellI] =   Zbeta(Z[cellI], Zvar[cellI], Z_so, Z_sf);
+                sootFormationRate[cellI] = 0.8 * Zbeta(Z[cellI], Zvar[cellI], Z_so, Z_sf);
+                sootOxidationRate[cellI] = 0.8 * Zbeta(Z[cellI], Zvar[cellI], 0.0, Z_sf);
+            }
+        }
+        else
+        {
+            forAll(Ysoot, cellI)
+            {
+                sootFormationRate[cellI] = 0.0;
+                sootOxidationRate[cellI] = 0.0;
+
+                if ((Z[cellI] >= Z_so) && (Z[cellI] <= Z_sf))
+                {
+
+                    sootFormationRate[cellI] = Af * Foam::pow(rho[cellI], 2.0)
+                                                * YFInf*(Z[cellI]-Z_st)/(1.0-Z_st)
+                                                * Foam::pow(T[cellI], gamma)
+                                                * Foam::exp(-Ta/T[cellI]);
+
+                }
+
+                if ((Z[cellI] >= 0.0) && (Z[cellI] <= Z_sf))
+                {
+                    sootOxidationRate[cellI] = rho[cellI] * Ysoot[cellI] * Asoot 
+                                                * Aox 
+                                                * O2Concentration[cellI]
+                                                * Foam::pow(T[cellI], 0.5)
+                                                * Foam::exp(-EaOx/Ru.value()/T[cellI]);
+
+                }
             }
         }
 
-        //update a limiter for oxidation rate
-        sootOxidationLimiter = rho*Ysoot/mesh().time().deltaT()
-                         - fvc::div(phi, Ysoot) 
-                         + fvc::laplacian(rho*turbulence.nut()/0.5, Ysoot)
-                         + sootFormationRate;
+        //Safety: limiting soot oxidation
+        volScalarField sootOxidationLimiter = rho*Ysoot/mesh().time().deltaT()
+                                             - fvc::div(phi, Ysoot)
+                                             + fvc::laplacian(lesModel.alphat(), Ysoot)
+                                             + sootFormationRate;
 
-        forAll(Ysoot, cellI)
+        forAll (sootOxidationRate, cellI)
         {
-            sootOxidationRate[cellI] = 0.0;  
+            sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));
+        }         
 
-            if ((Z[cellI] >= 0.0) && (Z[cellI] <= Z_sf))
-            {
-                sootOxidationRate[cellI] = rho[cellI] * Ysoot[cellI] * Asoot 
-                                            * Aox 
-                                            * O2Concentration[cellI]
-                                            * Foam::pow(T[cellI], 0.5)
-                                            * Foam::exp(-EaOx/Ru.value()/T[cellI]);
-                sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));                                                        
-                                                            
-            }
-        }
-
-        
         Info << "soot formation rate min/max = " << min(sootFormationRate).value() 
              << " , " << max(sootFormationRate).value() << endl;
 
@@ -302,7 +371,7 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                     fvm::ddt(rho, Ysoot)
                 +   fvm::div(phi, Ysoot)
                 ==  
-                    fvm::laplacian(rho*turbulence.nut()/0.5, Ysoot)
+                    fvm::laplacian(lesModel.alphat(), Ysoot)
                 +   sootFormationRate
                 -   sootOxidationRate
             );
@@ -315,14 +384,14 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
              << " , " << max(Ysoot).value() << endl;
 
         // Updating the density of the two-phase and soot vol. frac.
-        fv = rho * Ysoot / rhoSoot; 
+        fv == rho * Ysoot / rhoSoot; 
 
         Info << "soot vol fraction max = " << max(fv).value() << endl;
 
         //for diagnostic purposes only
         sootTimeDer     = fvc::ddt(rho, Ysoot);
         sootConvection  = fvc::div(phi, Ysoot);
-        diffusion  = fvc::div(0.556*thermo.mu()/T * fvc::grad(T) * Ysoot);        
+        diffusion       = fvc::laplacian(lesModel.alphat(), Ysoot);        
    }
 
 }

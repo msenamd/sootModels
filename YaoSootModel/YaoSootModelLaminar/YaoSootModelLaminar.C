@@ -261,6 +261,7 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                                             * YFInf*(Z[cellI]-Z_st)/(1.0-Z_st)
                                             * Foam::pow(T[cellI], gamma)
                                             * Foam::exp(-Ta/T[cellI]);
+                sootFormationRate[cellI] = max(0.0, sootFormationRate[cellI]);  
             }
         }
 
@@ -281,8 +282,7 @@ void Foam::radiation::YaoSootModelLaminar<ThermoType>::correct()
                                             * O2Concentration[cellI]
                                             * Foam::pow(T[cellI], 0.5)
                                             * Foam::exp(-EaOx/Ru.value()/T[cellI]);
-                sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));                                                        
-                                                            
+                sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));                                                                                                              
             }
         }
 

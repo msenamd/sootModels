@@ -42,6 +42,8 @@ Description
             {
 
                 solveSoot   true;
+
+                SGSFilter   true;
                 
                 rhoSoot     1800;
 
@@ -70,7 +72,8 @@ SourceFiles
 #include "reactingMixture.H"
 #include "singleStepReactingMixture.H"
 
-#include "turbulenceModel.H"
+#include "turbulentFluidThermoModel.H"
+#include "ZbetaPDF.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -113,8 +116,8 @@ class YaoSootModelTurbulent
         volScalarField sootFormationRate;
         volScalarField sootOxidationRate; 
 
-        //- Upper limit of soot oxidation rate
-        volScalarField sootOxidationLimiter; 
+        //- Probability of Z
+        volScalarField probabilityZ; 
 
         //- Soot time derivative and convection terms
         volScalarField sootConvection;
@@ -123,6 +126,7 @@ class YaoSootModelTurbulent
 
         //- Mixture fraction
         volScalarField Z;
+        volScalarField Zvar;
 
         //- Oxygen concentration
         volScalarField O2Concentration;
@@ -132,6 +136,7 @@ class YaoSootModelTurbulent
 
         // - Solve switch
         Switch solveSoot;
+        Switch SGSFilter;
 
         // - Soot density [kg/m3]
         dimensionedScalar rhoSoot;

@@ -1,4 +1,5 @@
 YaoSootModelLaminar/YaoSootModelLaminar_s.C
 YaoSootModelTurbulent/YaoSootModelTurbulent_s.C
+YaoSootModelTurbulent/ZbetaPDF.C
 
 LIB = $(FOAM_USER_LIBBIN)/libYaoSootModel
