@@ -40,6 +40,10 @@ Description
 
             YaoSootModelTurbulentCoeffs
             {
+                Xtilde_resolution 1e-3;
+                Xvar_resolution 1e-4;
+                Xtilde_max  1.0;
+                Xvar_max   0.25;
 
                 solveSoot   true;
 
@@ -50,7 +54,15 @@ Description
                 //fuel specific parameters
                 Af          4e-5; 
                 Z_sf        0.15;
-                Z_so        0.108;        
+                Z_so        0.108; 
+
+                //reference quantities
+                rho_ref     1.172;
+                MW_ref      28.8e-3;
+                T_ref       298;
+                T_ad        2375;
+
+                proportionalityConst        0.4;                
             }
 
 SourceFiles
@@ -62,18 +74,14 @@ SourceFiles
 #define YaoSootModelTurbulent_H
 
 #include "fvCFD.H"
-#include "interpolationLookUpTable.H"
 #include "sootModel.H"
-#include "HashTable.H"
-
 #include "fluidThermo.H"
 #include "thermoPhysicsTypes.H"
 #include "psiReactionThermo.H"
 #include "reactingMixture.H"
 #include "singleStepReactingMixture.H"
-
 #include "turbulentFluidThermoModel.H"
-#include "ZbetaPDF.H"
+#include "interpolation2DTable.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -116,9 +124,6 @@ class YaoSootModelTurbulent
         volScalarField sootFormationRate;
         volScalarField sootOxidationRate; 
 
-        //- Probability of Z
-        volScalarField probabilityZ; 
-
         //- Soot time derivative and convection terms
         volScalarField sootConvection;
         volScalarField sootTimeDer;
@@ -127,6 +132,13 @@ class YaoSootModelTurbulent
         //- Mixture fraction
         volScalarField Z;
         volScalarField Zvar;
+
+        //- Normalized T
+        volScalarField Theta;
+        volScalarField ThetaVar;
+
+        //- filtered density
+        volScalarField rhoBar;
 
         //- Oxygen concentration
         volScalarField O2Concentration;
@@ -175,8 +187,53 @@ class YaoSootModelTurbulent
 
         //- Constants
         dimensionedScalar MW_O2;
+        dimensionedScalar MW_Fuel;
         dimensionedScalar Ru;
         
+        //- Reference quantities for Beta-PDF integration
+        scalar rho_ref;
+        scalar MW_ref;
+        scalar T_ref;
+        scalar T_ad;
+
+        // - Temperature variance proportionality const.
+        scalar proportionalityConst;
+
+        //- Lookup table resolution and bounds
+        scalar dX;
+        scalar dXVar;
+        scalar X_max;
+        scalar XVar_max;
+
+        //- Lookup table of Beta-PDF integration functions
+        autoPtr<interpolation2DTable<scalar>> lookup_SF_Z;
+        autoPtr<interpolation2DTable<scalar>> lookup_SF_Theta;
+
+        autoPtr<interpolation2DTable<scalar>> lookup_SO_Z;
+        autoPtr<interpolation2DTable<scalar>> lookup_SO_Theta;
+        
+        autoPtr<interpolation2DTable<scalar>> lookup_invRho_Z;
+        autoPtr<interpolation2DTable<scalar>> lookup_invRho_Theta;
+
+
+    // Private member functions
+
+        //integratio of: F(Z) Ptilde(Z) dZ
+        double integratePDF(
+                const word& sourceName,            
+                const double& etaTilde,
+                const double& etaVar
+                );
+
+        //return mixture fraction (or temperature) dependent parts of the surce term
+        double sourceFunc(
+                const word& sourceName,
+                const double& eta 
+                );
+
+        //generate lookup table of integrated PDF
+        void generateLookup(const word& sourceName);
+
 public:
 
     //- Runtime type information
@@ -203,8 +260,7 @@ public:
         // Edit
 
             //- Main update/correction routine
-            virtual void correct();
-
+            virtual void correct();         
 
         // Access
 
