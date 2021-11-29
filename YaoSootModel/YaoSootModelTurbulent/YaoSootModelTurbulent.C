@@ -394,20 +394,32 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                                 )
                                 * rho[cellI] * Ysoot[cellI] * Asoot;
             }
-/*
+
             forAll(mesh().boundary(), patchI)
             {
                 forAll(Ysoot.boundaryField()[patchI], faceI)
                 {
-                    rhoBar[faceI] = 1.0 / 
-                                    (
-                                        lookup_invRho_Z()(Z[faceI] , Zvar[faceI]) 
-                                        *
-                                        lookup_invRho_Theta()(Theta[faceI] , ThetaVar[faceI]) 
-                                    );
+                rhoBar[faceI] = 1.0 /
+                                max(lookup_invRho_Z()(Z[faceI], Zvar[faceI])*lookup_invRho_Theta()(Theta[faceI], ThetaVar[faceI])
+                                    , 1e-9);
+
+                sootFormationRate[faceI] = rhoBar[faceI] * 
+                                (
+                                    lookup_SF_Z()(Z[faceI] , Zvar[faceI]) 
+                                    *
+                                    lookup_SF_Theta()(Theta[faceI] , ThetaVar[faceI]) 
+                                );
+
+                sootOxidationRate[faceI] = rhoBar[faceI] * 
+                                (
+                                    lookup_SO_Z()(Z[faceI] , Zvar[faceI]) 
+                                    *
+                                    lookup_SO_Theta()(Theta[faceI] , ThetaVar[faceI]) 
+                                )
+                                * rho[faceI] * Ysoot[faceI] * Asoot;
                 }        
             }
-*/
+
         }
         else
         {
