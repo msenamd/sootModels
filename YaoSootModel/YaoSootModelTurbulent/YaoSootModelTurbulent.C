@@ -375,12 +375,9 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
 
             forAll(Ysoot, cellI)
             {
-                rhoBar[cellI] = 1.0 / 
-                                (
-                                    lookup_invRho_Z()(Z[cellI] , Zvar[cellI]) 
-                                    *
-                                    lookup_invRho_Theta()(Theta[cellI] , ThetaVar[cellI]) 
-                                );
+                rhoBar[cellI] = 1.0 /
+                                max(lookup_invRho_Z()(Z[cellI], Zvar[cellI])*lookup_invRho_Theta()(Theta[cellI], ThetaVar[cellI])
+                                    , 1e-9);
 
                 sootFormationRate[cellI] = rhoBar[cellI] * 
                                 (
