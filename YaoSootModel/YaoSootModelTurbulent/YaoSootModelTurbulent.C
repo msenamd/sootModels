@@ -392,31 +392,32 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                                     *
                                     lookup_SO_Theta()(Theta[cellI] , ThetaVar[cellI]) 
                                 )
-                                * rho[cellI] * Ysoot[cellI] * Asoot;
+                                * rhoBar[cellI] * Ysoot[cellI] * Asoot;
             }
 
-            forAll(mesh().boundary(), patchI)
+            forAll(mesh().boundary(), patchID)
             {
-                forAll(Ysoot.boundaryField()[patchI], faceI)
+                forAll(mesh().boundary()[patchID],facei)
                 {
-                rhoBar[faceI] = 1.0 /
-                                max(lookup_invRho_Z()(Z[faceI], Zvar[faceI])*lookup_invRho_Theta()(Theta[faceI], ThetaVar[faceI])
+                rhoBar.boundaryFieldRef()[patchID][facei] = 1.0 /
+                                max(lookup_invRho_Z()(Z.boundaryFieldRef()[patchID][facei], Zvar.boundaryFieldRef()[patchID][facei])
+                                    *lookup_invRho_Theta()(Theta.boundaryFieldRef()[patchID][facei], ThetaVar.boundaryFieldRef()[patchID][facei])
                                     , 1e-9);
 
-                sootFormationRate[faceI] = rhoBar[faceI] * 
+                sootFormationRate.boundaryFieldRef()[patchID][facei] = rhoBar.boundaryFieldRef()[patchID][facei] * 
                                 (
-                                    lookup_SF_Z()(Z[faceI] , Zvar[faceI]) 
+                                    lookup_SF_Z()(Z.boundaryFieldRef()[patchID][facei] , Zvar.boundaryFieldRef()[patchID][facei]) 
                                     *
-                                    lookup_SF_Theta()(Theta[faceI] , ThetaVar[faceI]) 
+                                    lookup_SF_Theta()(Theta.boundaryFieldRef()[patchID][facei] , ThetaVar.boundaryFieldRef()[patchID][facei]) 
                                 );
 
-                sootOxidationRate[faceI] = rhoBar[faceI] * 
+                sootOxidationRate.boundaryFieldRef()[patchID][facei] = rhoBar.boundaryFieldRef()[patchID][facei] * 
                                 (
-                                    lookup_SO_Z()(Z[faceI] , Zvar[faceI]) 
+                                    lookup_SO_Z()(Z.boundaryFieldRef()[patchID][facei] , Zvar.boundaryFieldRef()[patchID][facei]) 
                                     *
-                                    lookup_SO_Theta()(Theta[faceI] , ThetaVar[faceI]) 
+                                    lookup_SO_Theta()(Theta.boundaryFieldRef()[patchID][facei] , ThetaVar.boundaryFieldRef()[patchID][facei]) 
                                 )
-                                * rho[faceI] * Ysoot[faceI] * Asoot;
+                                * rhoBar.boundaryFieldRef()[patchID][facei] * Ysoot.boundaryFieldRef()[patchID][facei] * Asoot;
                 }        
             }
 
