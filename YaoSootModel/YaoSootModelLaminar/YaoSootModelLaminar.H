@@ -40,15 +40,12 @@ Description
 
             YaoSootModelLaminarCoeffs
             {
-
                 solveSoot   true;
                 
                 rhoSoot     1800;
 
                 //fuel specific parameters
-                Af          4e-5; 
-                Z_sf        0.15;
-                Z_so        0.108;        
+                Af          4e-5;      
             }
 
 SourceFiles
@@ -111,13 +108,11 @@ class YaoSootModelLaminar
         volScalarField sootFormationRate;
         volScalarField sootOxidationRate; 
 
-        //- Upper limit of soot oxidation rate
-        volScalarField sootOxidationLimiter; 
-
         //- Soot time derivative and convection terms
         volScalarField sootConvection;
         volScalarField sootTimeDer;
         volScalarField thermophoresis;
+        surfaceScalarField thermophoresisFlux;
 
         //- Mixture fraction
         volScalarField Z;

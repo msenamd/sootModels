@@ -2,44 +2,59 @@
 
 template<class ThermoType>
 double Foam::radiation::YaoSootModelTurbulent<ThermoType>::integratePDF(
-                const word& sourceName,            
+                const word& sourceName,
+                const double& T_st,
                 const double& etaTilde,
-                const double& etaVar
+                const double& etaVar               
 			)
 {
 
+double epsilon = 1e-6;
 
-	if((etaVar == 0.0))
-	{
-		return sourceFunc(sourceName, etaTilde);
-	}
-
+if(etaVar > epsilon)
+{
 	//beta function parameters
 	double a = etaTilde * (etaTilde*(1.0-etaTilde)/etaVar - 1.0);
-	double b = (1.0-etaTilde) * (etaTilde*(1.0-etaTilde)/etaVar- 1.0);
+	double b = (1.0-etaTilde) * (etaTilde*(1.0-etaTilde)/etaVar - 1.0);
 
-	double etaMax = 1.0/(1.0+(b-1.0)/(a-1.0));
+	//safety statements to prevent singularity or overflow
+	double 	etaMax, anew, bnew;
+
 	if(a>500)
 	{
-		a = 500;
-		b = (a-1-etaMax*(a-2))/etaMax;
+		etaMax = 1.0 / (1.0 + (b-1.0)/(a-1.0));
+		anew = 500;
+		bnew = (anew-1-etaMax*(anew-2))/etaMax;
+
+		a = anew;
+		b = bnew;		
 	}
 	if(b>500)
 	{
-		b = 500;
-		a = (1+etaMax*(b-2))/(1-etaMax);
+		etaMax = 1.0 / (1.0 + (b-1.0)/(a-1.0));
+		bnew = 500;
+		anew = (1+etaMax*(bnew-2))/(1-etaMax);
+
+		a = anew;
+		b = bnew;
 	}
-	if((a<0) | (b<0))
+	if(a<=1e-4 && b>1.0)
 	{
-		return 0;
+		return sourceFunc(sourceName, T_st, 0.0);
 	}
+	if(b<=1e-4 && a>1.0)
+	{
+		return sourceFunc(sourceName, T_st, 1.0);
+	}
+
+	a = max (a, 1e-9);
+	b = max (b, 1e-9);
+
 
 	// integration variables
 	std::vector<double> v;
 	v.assign(12,0.0);
 
-	double epsilon = 1E-6;
-	
 	v[0]=epsilon;
 	v[1]=1e-5;
 	v[2]=1e-4;
@@ -61,9 +76,9 @@ double Foam::radiation::YaoSootModelTurbulent<ThermoType>::integratePDF(
 
 	//Numerator
 	double n1,n2,n3;
-	n1 = sourceFunc(sourceName, 0.0) * std::pow(epsilon,a)/a;
+	n1 = sourceFunc(sourceName, T_st, 0.0) * std::pow(epsilon,a)/a;
 	n2 = 0.0;
-	n3 = sourceFunc(sourceName, 1.0) * std::pow(epsilon,b)/b;
+	n3 = sourceFunc(sourceName, T_st, 1.0) * std::pow(epsilon,b)/b;
 
 	//Denominator
 	double d1,d2,d3;
@@ -97,13 +112,13 @@ double Foam::radiation::YaoSootModelTurbulent<ThermoType>::integratePDF(
 
 		int i=0;
 		eta[i]   		= eta1 + i* (eta2-eta1) / size; 
-		fBeta_num[i]   	= sourceFunc(sourceName, eta[i]) * std::pow(eta[i],a-1.0) * std::pow(1.0-eta[i],b-1.0);					
+		fBeta_num[i]   	= sourceFunc(sourceName, T_st, eta[i]) * std::pow(eta[i],a-1.0) * std::pow(1.0-eta[i],b-1.0);					
 		fBeta_denom[i] 	= std::pow(eta[i],a-1.0) * std::pow(1.0-eta[i],b-1.0);
 		
 		for(int i=1 ; i<size+1 ; i++)
 		{
 			eta[i]   		= eta1 + i* (eta2-eta1) / size; 
-			fBeta_num[i]   	= sourceFunc(sourceName, eta[i]) * std::pow(eta[i],a-1.0) * std::pow(1.0-eta[i],b-1.0);					
+			fBeta_num[i]   	= sourceFunc(sourceName, T_st, eta[i]) * std::pow(eta[i],a-1.0) * std::pow(1.0-eta[i],b-1.0);					
 			fBeta_denom[i] 	= std::pow(eta[i],a-1.0) * std::pow(1.0-eta[i],b-1.0);
 
 			//integration step
@@ -112,7 +127,13 @@ double Foam::radiation::YaoSootModelTurbulent<ThermoType>::integratePDF(
 		}
 	}
 
-	return (n1+n2+n3)/(d1+d2+d3);
+	return (n1+n2+n3)/max(d1+d2+d3, 1e-6);
+}
+
+else
+{
+	return sourceFunc(sourceName, T_st, etaTilde);
+}
 
 }
 

@@ -59,10 +59,7 @@ Description
                 //reference quantities
                 rho_ref     1.172;
                 MW_ref      28.8e-3;
-                T_ref       298;
-                T_ad        2375;
-
-                proportionalityConst        0.4;                
+                T_ref       300;
             }
 
 SourceFiles
@@ -133,11 +130,9 @@ class YaoSootModelTurbulent
         volScalarField Z;
         volScalarField Zvar;
 
-        //- Normalized T
-        volScalarField Theta;
-        volScalarField ThetaVar;
-
-        //- filtered density
+        //- Fields calculated using PDF approach
+        volScalarField T_st;
+        volScalarField T_check;        
         volScalarField rhoBar;
 
         //- Oxygen concentration
@@ -194,10 +189,6 @@ class YaoSootModelTurbulent
         scalar rho_ref;
         scalar MW_ref;
         scalar T_ref;
-        scalar T_ad;
-
-        // - Temperature variance proportionality const.
-        scalar proportionalityConst;
 
         //- Lookup table resolution and bounds
         scalar dX;
@@ -206,29 +197,23 @@ class YaoSootModelTurbulent
         scalar XVar_max;
 
         //- Lookup table of Beta-PDF integration functions
-        autoPtr<interpolation2DTable<scalar>> lookup_SF_Z;
-        autoPtr<interpolation2DTable<scalar>> lookup_SF_Theta;
-
-        autoPtr<interpolation2DTable<scalar>> lookup_SO_Z;
-        autoPtr<interpolation2DTable<scalar>> lookup_SO_Theta;
-        
-        autoPtr<interpolation2DTable<scalar>> lookup_invRho_Z;
-        autoPtr<interpolation2DTable<scalar>> lookup_invRho_Theta;
-
+        autoPtr<interpolation2DTable<scalar>> lookup_Tst;
 
     // Private member functions
 
         //integratio of: F(Z) Ptilde(Z) dZ
         double integratePDF(
-                const word& sourceName,            
+                const word& sourceName,
+                const double& T_st,
                 const double& etaTilde,
-                const double& etaVar
+                const double& etaVar                
                 );
 
-        //return mixture fraction (or temperature) dependent parts of the surce term
+        //return functions of Z for PDF intergration
         double sourceFunc(
                 const word& sourceName,
-                const double& eta 
+                const double& T_st,
+                const double& Z 
                 );
 
         //generate lookup table of integrated PDF
