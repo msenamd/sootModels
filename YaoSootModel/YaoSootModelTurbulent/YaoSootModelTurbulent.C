@@ -155,32 +155,32 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
         ),
         mesh
     ),
-    T_st
+    Theta
     (
         IOobject
         (
-            "T_st",
+            "Theta",
             mesh.time().timeName(),
             mesh,
             IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
-        dimensionedScalar("T_st", dimensionSet(0,0,0,1,0,0,0), scalar(0.0))
+        dimensionedScalar("Theta", dimless, scalar(0.0))
     ),
-    T_check
+    ThetaVar
     (
         IOobject
         (
-            "T_check",
+            "ThetaVar",
             mesh.time().timeName(),
             mesh,
             IOobject::READ_IF_PRESENT,
             IOobject::AUTO_WRITE
         ),
         mesh,
-        dimensionedScalar("T_check", dimensionSet(0,0,0,1,0,0,0), scalar(0.0))
-    ),       
+        dimensionedScalar("ThetaVar", dimless, scalar(0.0))
+    ),
     rhoBar
     (
         IOobject
@@ -193,7 +193,7 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
         ),
         mesh,
         dimensionedScalar("rhoBar", dimensionSet(1,-3,0,0,0,0,0), scalar(0.0))
-    ),           
+    ),       
     O2Concentration
     (
         IOobject
@@ -232,8 +232,8 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
 
     Z_st( (YO2Inf/s)/(YFInf+YO2Inf/s) ),
     
-    Z_sf( 2.5*Z_st ),
-    Z_so( 1.25*Z_st ),
+    Z_sf( readScalar(coeffsDict_.lookup("Z_sf")) ),
+    Z_so( readScalar(coeffsDict_.lookup("Z_so")) ),
     
     gamma(2.25),
     Ta(2000.0),
@@ -249,13 +249,21 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
     rho_ref( readScalar(coeffsDict_.lookup("rho_ref")) ),
     MW_ref( readScalar(coeffsDict_.lookup("MW_ref")) ),
     T_ref( readScalar(coeffsDict_.lookup("T_ref")) ),
+    T_ad( readScalar(coeffsDict_.lookup("T_ad")) ),
+
+    proportionalityConst(readScalar(coeffsDict_.lookup("proportionalityConst"))),
 
     dX( readScalar(coeffsDict_.lookup("Xtilde_resolution")) ),  
     dXVar( readScalar(coeffsDict_.lookup("Xvar_resolution")) ),
     X_max( readScalar(coeffsDict_.lookup("Xtilde_max")) ),
     XVar_max( readScalar(coeffsDict_.lookup("Xvar_max")) ), 
 
-    lookup_Tst()
+    lookup_SF_Z(),
+    lookup_SF_Theta(),
+    lookup_SO_Z(),
+    lookup_SO_Theta(),
+    lookup_invRho_Z(),
+    lookup_invRho_Theta()
 
 {
 
@@ -270,16 +278,27 @@ Foam::radiation::YaoSootModelTurbulent<ThermoType>::YaoSootModelTurbulent
 
 
     //- Generating look-up tableLookup table of Beta-PDF integration functions
-/*
+
     if (SGSFilter)
     {
         Info << "Generating lookup tables of Beta-PDF integrals" << endl;
 
-        generateLookup("Tst");
+        generateLookup("SF_Z");
+        generateLookup("SF_Theta");
+        generateLookup("SO_Z");
+        generateLookup("SO_Theta");
+        generateLookup("invRho_Z");
+        generateLookup("invRho_Theta");
 
-        lookup_Tst.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"Tst_data.dat"));
+        lookup_SF_Z.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"SF_Z_data.dat"));
+        lookup_SF_Theta.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"SF_Theta_data.dat"));
+
+        lookup_SO_Z.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"SO_Z_data.dat"));
+        lookup_SO_Theta.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"SO_Theta_data.dat"));
+
+        lookup_invRho_Z.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"invRho_Z_data.dat"));
+        lookup_invRho_Theta.reset(new interpolation2DTable<scalar> (mesh.time().path()/"constant"/"invRho_Theta_data.dat"));        
     }
-*/
 }
 
 
@@ -311,7 +330,10 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                                                 (
                                                  turbulenceModel::propertiesName
                                                 );
-        
+
+        dimensionedScalar  k_small("k_small", dimensionSet(0,2,-2,0,0,0,0), SMALL);      
+        volScalarField invTauSGS = lesModel.epsilon()/max(lesModel.k(), k_small);                                       
+
         //updating concentration of O2
         O2Concentration == YO2*rho/MW_O2;
 
@@ -323,7 +345,7 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
         if (SGSFilter)
         {    
             // Solving transport equation of mixture fraction variance
-            dimensionedScalar  k_small("k_small", dimensionSet(0,2,-2,0,0,0,0),1e-12);
+
 
             solve
             (
@@ -331,37 +353,69 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                 +   fvm::div(phi, Zvar)
                 ==  fvm::laplacian(lesModel.alphaEff(), Zvar)
                 +   2.0 * lesModel.alphat() * (fvc::grad(Z) & fvc::grad(Z))
-                -   fvm::Sp(2.0 * rho * lesModel.epsilon()/max(lesModel.k(), k_small) , Zvar)
+                -   fvm::Sp(2.0 * rho * invTauSGS, Zvar)
             );
 
             Zvar.max(0.0);
             Zvar.min(0.25);   
-            Info << "Zvar min/max       = "   << min(Zvar).value() << " , " << max(Zvar).value() << endl;
+            Info << "Zvar min       = "   << min(Zvar).value() << endl;
+            Info << "Zvar max       = "   << max(Zvar).value() << endl;
+
+            // Calculating normalized temperature and its variance
+            Theta = (T - dimensionedScalar("dimT", dimensionSet(0,0,0,1,0,0,0), T_ref)) / 
+                    dimensionedScalar("dimT", dimensionSet(0,0,0,1,0,0,0), T_ad-T_ref); 
+            Theta.max(0.0);
+            Theta.min(1.0);
+
+            ThetaVar = pow(proportionalityConst * Theta/max(Z,1e-4) , 2.0) * Zvar;
+            ThetaVar.max(0.0);
+            ThetaVar.min(0.25);
+            Info << "ThetaVar min    = "   << min(ThetaVar).value() << endl;
+            Info << "ThetaVar max    = "   << max(ThetaVar).value() << endl;            
 
             // Calculate formation and oxidation rates
             Info <<"updating soot formation/oxidation rates (Turbulent)" << endl;
 
-            scalar intPDF_Ztriangle = 0.0;  //integration of f(Z)*P(Z)*dZ
-
             forAll(Ysoot, cellI)
             {
-                intPDF_Ztriangle = integratePDF("Ztriangle", T_st[cellI], Z[cellI], Zvar[cellI]);
+                sootFormationRate[cellI] = 0.0;
+                sootOxidationRate[cellI] = 0.0;
 
-                T_st[cellI]    = (T[cellI] - T_ref+ T_ref*intPDF_Ztriangle) / max(intPDF_Ztriangle, 1e-6);
+                rhoBar[cellI] = 1.0/max(lookup_invRho_Z()(Z[cellI], Zvar[cellI])*lookup_invRho_Theta()(Theta[cellI], ThetaVar[cellI]), 1e-6);
 
-                T_check[cellI] = T_ref + T_st[cellI]*intPDF_Ztriangle - T_ref*intPDF_Ztriangle;
+                sootFormationRate[cellI] = rhoBar[cellI] * 
+                                (
+                                    lookup_SF_Z()(Z[cellI] , Zvar[cellI]) 
+                                    *
+                                    lookup_SF_Theta()(Theta[cellI] , ThetaVar[cellI]) 
+                                ); 
 
-                rhoBar[cellI]  = 1.0 / max(integratePDF("density", T_st[cellI], Z[cellI], Zvar[cellI]), 1e-6);  
-                                            
-                sootFormationRate[cellI] = rhoBar[cellI] * integratePDF("formationRate", T_st[cellI], Z[cellI], Zvar[cellI]);
+                sootOxidationRate[cellI] = rhoBar[cellI] * 
+                                (
+                                    lookup_SO_Z()(Z[cellI] , Zvar[cellI]) 
+                                    *
+                                    lookup_SO_Theta()(Theta[cellI] , ThetaVar[cellI]) 
+                                ) 
+                                * rho[cellI] * Ysoot[cellI] *Asoot; 
 
-                sootOxidationRate[cellI] = rhoBar[cellI] * integratePDF("oxidationRate", T_st[cellI], Z[cellI], Zvar[cellI])
-                                         * rho[cellI] * Ysoot[cellI] * Asoot;
             }
 
-            Info << "T_st min/max       = "   << min(T_st).value() << " , " << max(T_st).value() << endl;
-            Info << "T_check min/max    = "   << min(T_check).value() << " , " << max(T_check).value() << endl;
-
+/*            sootOxidationRate = 4.0 * rho * invTauSGS 
+                          * min(
+                                Ysoot, 
+                                YO2 * Ysoot / max((Ysoot*2.66667 + YFuel*3.6363), SMALL)
+                                );  
+*/
+            forAll(mesh().boundary(), patchID)
+            {
+                forAll(mesh().boundary()[patchID],facei)
+                {
+                    rhoBar.boundaryFieldRef()[patchID][facei] = 1.0 /
+                                    max(lookup_invRho_Z()(Z.boundaryFieldRef()[patchID][facei], Zvar.boundaryFieldRef()[patchID][facei])
+                                        *lookup_invRho_Theta()(Theta.boundaryFieldRef()[patchID][facei], ThetaVar.boundaryFieldRef()[patchID][facei])
+                                        , 1e-9);
+                }        
+            }
         }
         else
         {
@@ -391,7 +445,7 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                                                 * Foam::exp(-EaOx/Ru.value()/T[cellI]);
 
                 }
-            }
+            }            
         }
 
         //Safety: limiting soot oxidation
@@ -399,11 +453,8 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
                                              - fvc::div(phi, Ysoot)
                                              + fvc::laplacian(lesModel.alphat(), Ysoot)
                                              + sootFormationRate;
-
-        forAll (sootOxidationRate, cellI)
-        {
-            sootOxidationRate[cellI] = max(0.0, min(sootOxidationRate[cellI], sootOxidationLimiter[cellI]));
-        }         
+        sootOxidationLimiter.max(0.0);
+        sootOxidationRate = min(sootOxidationRate, sootOxidationLimiter);
 
         Info << "soot formation rate min/max = " << min(sootFormationRate).value() 
              << " , " << max(sootFormationRate).value() << endl;
@@ -416,7 +467,7 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
             (
                     fvm::ddt(rho, Ysoot)
                 +   fvm::div(phi, Ysoot)
-                ==  
+                ==
                     fvm::laplacian(lesModel.alphat(), Ysoot)
                 +   sootFormationRate
                 -   sootOxidationRate
@@ -426,7 +477,8 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
         Ysoot.max(0.0);
         Ysoot.min(1.0);
 
-        Info << "Ysoot min/max       = "   << min(Ysoot).value() << " , " << max(Ysoot).value() << endl;
+        Info << "soot mass fraction min/max = " << min(Ysoot).value() 
+             << " , " << max(Ysoot).value() << endl;
 
         // Updating the density of the two-phase and soot vol. frac.
         fv == rho * Ysoot / rhoSoot; 
@@ -444,104 +496,93 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::correct()
 template<class ThermoType>
 double Foam::radiation::YaoSootModelTurbulent<ThermoType>::sourceFunc(
                                                 const word& sourceName,
-                                                const double& T_st,
-                                                const double& Z
+                                                const double& eta
                                                 )
 {
 
-    double Ztriangle    = 0.0;
-    double rho_approx   = 0.0;
-    double T_approx     = 0.0;
-    double MW_approx    = 0.0;
-    double YO2_approx   = 0.0;
+    //construct dimensioned T from Theta
+    double T_dim        = T_ref + eta*(T_ad-T_ref);
 
-    //approximate temperature
-    if (Z >=0 && Z <= Z_st)
-    {
-        Ztriangle = Z/Z_st;
-    }
-    else
-    {
-        Ztriangle = (1.0-Z)/(1-Z_st);
-    } 
-    T_approx = T_ref + (T_st-T_ref) * Ztriangle;
+    //approximate MW
+    double MW_approx    = 1.0/ ( (1.0-eta)/MW_ref + eta/MW_Fuel.value() );
+
+    //approximate density 
+    double rho_approx_Z      = rho_ref * MW_approx/MW_ref;
+    double rho_approx_Theta  = T_ref/T_dim;
 
     //approximate YO2
-    double Z_L = 0.875 * Z_st;
-    double B = Z_st-Z_L;
-    double A = YO2Inf * (1-Z_L/Z_st)*Foam::exp(Z_L/B);
-
-    if (Z >=0 && Z <= Z_L)
+    double YO2_approx   = 0.0;
+    double Z_L          = 0.9 * Z_st;
+    double B            = Z_st-Z_L;
+    double A            = YO2Inf * (1-Z_L/Z_st)*Foam::exp(Z_L/B);
+    if (eta >=0 && eta <= Z_L)
     {
-        YO2_approx = YO2Inf * (1.0 - Z/Z_st);
+        YO2_approx = YO2Inf*(1.0-eta/Z_st);
     }
     else
     {
-        YO2_approx = A*Foam::exp(-Z/B);        
-    } 
+        YO2_approx = A*Foam::exp(-eta/B);        
+    }
 
-    //approximate density
-    MW_approx   = 1.0/ ( (1.0-Z)/MW_ref + Z/MW_Fuel.value() );
-    rho_approx  = rho_ref * MW_approx/MW_ref * T_ref/T_approx;
+    // return 1/rho
+    if(sourceName == "invRho_Z")
+    {
+        return 1.0/rho_approx_Z;
+    }
+    else if(sourceName == "invRho_Theta")
+    {
+        return 1.0/rho_approx_Theta;
+    }
 
     // return sootFormationRate/rho
-    if (sourceName == "formationRate")
+    else if(sourceName == "SF_Z")
     {
-        if (Z>=Z_so && Z<=Z_sf)
+        if((eta>= Z_so) && (eta<= Z_sf))
         {
-             return Af * Foam::pow(rho_approx, 2.0)
-                    * YFInf*(Z-Z_st)/(1.0-Z_st)
-                    * Foam::pow(T_approx, gamma)
-                    * Foam::exp(-Ta/T_approx)
-                    / rho_approx;           
+            return Af * rho_approx_Z
+                    * YFInf*(eta-Z_st)/(1.0-Z_st);
         }
         else
         {
-            return 0;
-        }        
+            return 0.0;
+        }
+    }
+    else if(sourceName == "SF_Theta")
+    {
+        return rho_approx_Theta
+                * Foam::pow(T_dim, gamma)
+                * Foam::exp(-Ta / T_dim);
     }
 
-    // return sootOxidationRate/rho / Ysoot
-    else if (sourceName == "oxidationRate")
+    // return sootOxidationRate/rho
+    else if(sourceName == "SO_Z")
     {
-        if (Z>=0.0 && Z<=Z_sf)
+        if((eta>= 0.0) && (eta<= Z_sf))
         {
-             return Aox 
-                    * rho_approx * YO2_approx/MW_O2.value()
-                    * Foam::pow(T_approx, 0.5)
-                    * Foam::exp(-EaOx/Ru.value()/T_approx)
-                    / rho_approx;           
+            return Aox
+                    * YO2_approx/MW_O2.value();
         }
         else
         {
-            return 0;
-        }        
-    } 
-
-    //return 1/rho
-    else if (sourceName == "density")
-    {
-        return 1.0/rho_approx;
+            return 0.0;
+        }
     }
-
-    // return Z triangle profile
-    else if (sourceName == "Ztriangle")
+    else if(sourceName == "SO_Theta")
     {
-        return Ztriangle;
-
+        return  Foam::pow(T_dim, 0.5)
+                * Foam::exp(-EaOx/Ru.value() / T_dim);
     }
 
     else
     {
         FatalErrorInFunction
-        << "Attempt to use a function in PDF integration that is not listed"
-        << abort(FatalError);
-        return 0;        
-    }        
-                    
+            << "Undefined function name: " << sourceName << exit(FatalError);
+    }
+
+    return 0;
 }
 
-/*
+
 template<class ThermoType>
 void Foam::radiation::YaoSootModelTurbulent<ThermoType>::generateLookup(
                                                 const word& sourceName
@@ -599,6 +640,5 @@ void Foam::radiation::YaoSootModelTurbulent<ThermoType>::generateLookup(
         Info << "   Done writing lookup table of " << sourceName << endl;        
 
 }
-*/
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
